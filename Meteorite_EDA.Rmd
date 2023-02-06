@@ -1,0 +1,75 @@
+---
+title: "CDS492_Project"
+author: "Steven Viola"
+date: "2/5/2023"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+meteorite_landings<-read.csv("C://Users//321st//Downloads//Meteorite-Landings.csv", header = TRUE)
+```
+
+```{r}
+meteorite_landings<-na.omit(meteorite_landings)
+```
+
+
+
+```{r}
+library(lubridate)
+
+meteorite_landings$year <- as.POSIXct(meteorite_landings$year, format = "%m/%d/%Y %I:%M:%S %p")
+
+meteorite_landings$year <- format(meteorite_landings$year, "%Y")
+
+```
+
+## Exploratory Data Analysis
+```{r}
+summary(meteorite_landings)
+meteorite_landings$year<- as.numeric(meteorite_landings$year)
+
+```
+```{r}
+hist(meteorite_landings$year)
+```
+```{r}
+recent_meteor<- subset(meteorite_landings, year>=1900)
+```
+
+```{r}
+hist(recent_meteor$year)
+```
+
+```{r}
+summary(meteorite_landings$mass..g.)
+```
+
+```{r}
+plot(meteorite_landings$mass..g.~meteorite_landings$year)
+```
+
+```{r}
+plot(recent_meteor$mass..g.~recent_meteor$year)
+```
+
+```{r}
+model<-lm(meteorite_landings$mass..g.~meteorite_landings$year)
+summary(model)
+```
+```{r}
+plot(meteorite_landings$mass..g.~meteorite_landings$year)
+abline(model, col = "red")
+```
+
+```{r}
+counts <- table(meteorite_landings$year)
+plot(counts)
+counts2<- table(recent_meteor$year)
+plot(counts2)
+```
+
