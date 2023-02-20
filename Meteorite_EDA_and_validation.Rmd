@@ -1,0 +1,335 @@
+---
+title: "CDS492_Project"
+author: "Steven Viola"
+date: "2/5/2023"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(lubridate)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+meteorite_landings<-read.csv("C://Users//321st//Downloads//Meteorite-Landings.csv", header = TRUE)
+```
+
+```{r}
+meteorite_landings<-na.omit(meteorite_landings)
+colnames(meteorite_landings)[colnames(meteorite_landings)=="mass..g."]<- "mass"
+```
+
+```{r}
+
+meteorite_landings$year <- as.POSIXct(meteorite_landings$year, format = "%m/%d/%Y %I:%M:%S %p")
+
+meteorite_landings$year <- format(meteorite_landings$year, "%Y")
+
+```
+
+## Exploratory Data Analysis
+
+```{r}
+summary(meteorite_landings)
+meteorite_landings$year<- as.numeric(meteorite_landings$year)
+
+```
+
+```{r}
+hist(meteorite_landings$year)
+```
+
+```{r}
+recent_meteor<- subset(meteorite_landings, year>=1900)
+```
+
+```{r}
+hist(recent_meteor$year)
+```
+
+```{r}
+summary(meteorite_landings$mass..g.)
+```
+
+```{r}
+plot(meteorite_landings$mass~meteorite_landings$year)
+```
+
+```{r}
+plot(recent_meteor$mass~recent_meteor$year)
+```
+
+```{r}
+model<-lm(meteorite_landings$mass~meteorite_landings$year)
+summary(model)
+```
+
+```{r}
+plot(meteorite_landings$mass~meteorite_landings$year)
+abline(model, col = "red")
+```
+
+```{r}
+counts <- table(meteorite_landings$year)
+plot(counts)
+counts2<- table(recent_meteor$year)
+plot(counts2)
+```
+
+This dataset has become very easy to work with after I fixed the formatting of the year column and removed the NA values. This dataset will help me achieve my goal of building a model to predict the next large meteorite. It is interesting that year is a significant predictor of meteorite mass. It is also interesting that there is data for a meteorite in the year 2101, which has not happened yet. Visually, I can already see that there are periods of higher meteorite landings and periods of lower amounts of landings.
+
+```{r}
+recent_meteor2 <- subset(recent_meteor, !(reclat == 0 & reclong == 0))
+meteorite <- subset(recent_meteor2, !(mass == 0))
+meteorite$mass<- meteorite$mass * 0.0022
+```
+
+```{r}
+world_map <- map_data("world")
+ggplot(world_map) +
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "grey80", color = "white") +
+  geom_point(data = meteorite, aes(x = reclong, y = reclat), color = "red", size = 2) +
+  coord_fixed(1.3) +
+  theme_void()
+```
+
+```{r}
+meteorite_mass<- subset(meteorite, (mass<1000))
+hist(meteorite_mass$mass , breaks = 20)
+```
+
+```{r}
+ggplot(meteorite_mass, aes(x = mass)) +
+  geom_histogram(binwidth = 30) +
+  labs(x = "Meteorite Mass (g)", y = "Count")
+```
+
+```{r}
+
+# Plot time series of meteorite landings
+meteorite %>% 
+  mutate(year = as.numeric(str_sub(year, start = 1, end = 4))) %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = year, y = count)) +
+  geom_line() +
+  labs(x = "Year", y = "Count", title = "Number of Meteorite Landings by Year")
+```
+
+```{r}
+meteorite %>% 
+  filter(!is.na(recclass)) %>% 
+  ggplot(aes(x = recclass, y = mass)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(x = "Meteorite Classification", y = "Meteorite Mass (g)", 
+       title = "Distribution of Meteorite Masses by Classification")
+```
+
+```{r}
+meteorite %>% 
+  group_by(recclass) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = recclass, y = count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Meteorite Classification", y = "Count", 
+       title = "Distribution of Meteorite Classifications")
+```
+
+```{r}
+mass_model <- lm(mass ~ year, data = meteorite)
+summary(mass_model)
+plot(mass_model)
+```
+
+```{r}
+future_years <- data.frame(year = c(2023, 2024))
+future_masses <- predict(mass_model, newdata = future_years)
+```
+
+```{r}
+cat("Predicted masses for 2023 and 2024:\n")
+cat(paste("2023:", round(future_masses[1], 2), "lbs"))
+cat(paste("2024:", round(future_masses[2], 2), "lbs"))
+```
+
+
+
+
+```{r}
+
+meteo <- subset(meteorite, select=c("mass", "reclat", "reclong"))
+
+meteo_scaled <- scale(meteo)
+meteo_scaled <- data.frame(meteo_scaled)
+
+set.seed(123)
+k <- 3
+km <- kmeans(meteo_scaled, k)
+
+print(km$centers)
+
+ggplot(meteo_scaled, aes(x=reclong, y=reclat, color=factor(km$cluster))) +
+  geom_point() +
+  scale_color_discrete(name="Cluster") +
+  theme_bw()
+
+```
+
+```{r}
+average_mass <- mean(meteorite$mass)
+print(paste("The average meteor mass is", average_mass, "lbs."))
+
+meteor_rate_per_year <- nrow(meteorite) / max(as.numeric(meteorite$year))
+print(paste("The rate per year that meteors land on earth is", meteor_rate_per_year, "per year."))
+
+meteorite$mass_group <- cut(meteorite$mass, 
+                           breaks = c(0,1, 2, 20, 100, 1000, 10000,10000000), 
+                           labels = c("pebble","Very Small", "Small", "Medium", "Large", "Very Large", "Enourmous"), 
+                           right = FALSE)
+
+table(meteorite$mass_group)
+```
+```{r}
+total <- nrow(meteorite)
+mass_group_counts <- table(meteorite$mass_group)
+mass_group_percentages <- mass_group_counts / total * 100
+print(paste("Percentage of total meteorites by mass group:"))
+for (mass_group in names(mass_group_percentages)) {
+  print(paste(mass_group, ":", mass_group_percentages[mass_group], "%"))
+}
+```
+
+```{r}
+meteorites_50_90 <- subset(meteorite, year >= 1950 & year <= 1990)
+
+# Count the number of entries for each year in the subset
+meteorite_counts <- table(meteorites_50_90$year)
+
+# Print the counts for each year
+print(meteorite_counts)
+```
+
+```{r}
+met_74 <- subset(meteorite, year >= 1974 & year <= 2023) 
+```
+
+```{r}
+#Valuable information for new simulation
+nrow(met_74)
+
+average_mass <- mean(met_74$mass)
+print(paste("The average meteor mass is", average_mass, "lbs."))
+
+meteor_rate_per_year <- nrow(met_74) / (max(as.numeric(met_74$year))-1974)
+print(paste("The rate per year that meteors land on earth is", meteor_rate_per_year, "per year."))
+
+met_74$mass_group <- cut(met_74$mass, 
+                           breaks = c(0,1, 2, 20, 100, 1000, 10000,10000000), 
+                           labels = c("pebble","Very Small", "Small", "Medium", "Large", "Very Large", "Enourmous"), 
+                           right = FALSE)
+
+table(met_74$mass_group)
+```
+```{r}
+total <- nrow(met_74)
+mass_group_counts <- table(met_74$mass_group)
+mass_group_percentages <- mass_group_counts / total 
+print(paste("Percentage of total meteorites by mass group:"))
+for (mass_group in names(mass_group_percentages)) {
+  print(paste(mass_group, ":", mass_group_percentages[mass_group]))
+}
+```
+  
+```{r}
+sim74<-read.csv("C://Users//321st//meteor_sim_data.csv", header = TRUE)
+```
+
+Comparisons between the results of the simulation and the actual data set begin here. 
+
+```{r}
+total_real <- nrow(met_74)
+total_sim <- nrow(sim74)
+print(paste("Meteorite Count From Actual Data: ", total_real, "Meteorite Count From Simulation Data: ", total_sim, "This is a difference of:", total_real - total_sim))
+```
+
+```{r}
+actual_counts <- met_74 %>%
+  group_by(year) %>%
+  summarise(count=n()) %>%
+  select(year, count)
+
+sim_counts <- sim74 %>%
+  group_by(year) %>%
+  summarise(count=n()) %>%
+  select(year, count)
+
+merged_counts <- merge(actual_counts, sim_counts, by='year', suffixes=c('.actual', '.simulated'))
+
+ggplot(merged_counts, aes(x=year)) +
+  geom_line(aes(y=count.actual, color='Actual')) +
+  geom_line(aes(y=count.simulated, color='Simulated'), linetype='dashed') +
+  labs(title='Actual vs Simulated Meteorite Counts', y='Count', color='Dataset') +
+  scale_color_manual(values=c('Actual'='black', 'Simulated'='red'))
+```
+There was little to no variation in count for the simulation. 
+
+```{r}
+met_74 %>% 
+  mutate(year = as.numeric(str_sub(year, start = 1, end = 4))) %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = year, y = count)) +
+  geom_line() +
+  labs(x = "Year", y = "Count", title = "Number of Meteorite Landings by Year")
+
+sim74 %>% 
+  mutate(year = as.numeric(str_sub(year, start = 1, end = 4))) %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = year, y = count)) +
+  geom_line() +
+  labs(x = "Year", y = "Count", title = "Number of Meteorite Landings by Year")
+```
+
+```{r}
+
+# Calculates the residuals for count per year
+count_residuals <- merged_counts$count.actual - merged_counts$count.simulated
+
+# Calculates the R-squared value
+count_r_squared <- 1 - sum(count_residuals^2) / sum((merged_counts$count.actual - mean(merged_counts$count.actual))^2)
+
+print(paste("R-squared Value is:",count_r_squared ))
+
+```
+
+```{r}
+# Calculates mean mass per year
+met_74_mean_mass <- aggregate(met_74$mass, by=list(met_74$year), FUN=mean)
+colnames(met_74_mean_mass) <- c("year", "mean_mass")
+
+sim_74_mean_mass <- aggregate(sim74$mass, by=list(sim74$year), FUN=mean)
+colnames(sim_74_mean_mass) <- c("year", "mean_mass")
+
+# Creates a histogram of the mean mass per year
+hist(met_74_mean_mass$mean_mass, col="blue", main="Mean Meteorite Mass per Year", xlab="Mass (g)", breaks=20)
+
+# Add a histogram of the mean mass per year in the sim74 dataset
+hist(sim_74_mean_mass$mean_mass, col="red", add=TRUE, breaks=20)
+
+legend("topright", c("Actual", "Simulated"), fill=c("blue", "red"))
+
+
+```
+
+
+
+
